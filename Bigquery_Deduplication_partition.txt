@@ -1,0 +1,40 @@
+'' Query to create data under the schema transactions
+CREATE OR REPLACE TABLE `transactions.testdata`
+PARTITION BY date
+AS SELECT
+  date,
+  CAST((i*2)+(2-FLOOR(RAND()*4.0)) AS INT64) AS v
+FROM
+  UNNEST(GENERATE_DATE_ARRAY(
+    CURRENT_DATE(),
+    DATE_ADD(CURRENT_DATE(), INTERVAL 5 DAY)
+  )) AS date
+  CROSS JOIN UNNEST(GENERATE_ARRAY(1, 1000000, 1)) AS i
+  
+  
+'' Examine the data
+SELECT
+  date,
+  COUNT(DISTINCT v) AS unique_values,
+  COUNT(*) AS value
+FROM
+  `transactions.testdata`
+GROUP BY 1 
+ORDER BY 1 'This will take time so be careful
+
+''deduplicate the data
+CREATE OR REPLACE TABLE `transactions.testdata`
+PARTITION BY date
+AS SELECT DISTINCT * FROM `transactions.testdata`;
+
+
+'' deduplicate the partition instead of the entire data
+MERGE `transactions.testdata` t
+USING (
+  SELECT DISTINCT *
+  FROM `transactions.testdata`
+  WHERE date=CURRENT_DATE()
+)
+ON FALSE
+WHEN NOT MATCHED BY SOURCE AND date=CURRENT_DATE() THEN DELETE
+WHEN NOT MATCHED BY TARGET THEN INSERT ROW
